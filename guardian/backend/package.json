@@ -1,0 +1,20 @@
+{
+  "name": "guardian-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Guardian child-safety backend: content analysis, alerts, screen-time policy and geofencing.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test",
+    "db:schema": "psql \"$DATABASE_URL\" -f db/schema.sql",
+    "analyze": "node scripts/analyze.js",
+    "seed": "node scripts/seed-dev.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.132.1",
+    "express": "^5.2.1",
+    "pg": "^8.23.1"
+  }
+}
