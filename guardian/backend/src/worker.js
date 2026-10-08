@@ -4,7 +4,7 @@
 import { loadFieldCrypto } from './lib/fieldCrypto.js';
 import { createNotifier } from './lib/notifier.js';
 import { forgetPushTokens } from './lib/auth.js';
-import { classifyWithLLM } from './analyzer/llmClassifier.js';
+import { classifyWithLLM, classifyBatchWithLLM } from './analyzer/llmClassifier.js';
 import { syncAllGmail } from './jobs/gmailSync.js';
 import { runRetention } from './jobs/retention.js';
 import { logger } from './lib/logger.js';
@@ -13,6 +13,7 @@ import { pool } from './lib/db.js';
 const fieldCrypto = await loadFieldCrypto();
 const notifier = await createNotifier({ onInvalidTokens: forgetPushTokens });
 const classify = process.env.ANTHROPIC_API_KEY ? classifyWithLLM : null;
+const classifyBatch = process.env.ANTHROPIC_API_KEY ? classifyBatchWithLLM : null;
 
 function every(minutes, name, fn) {
   let running = false;
@@ -32,7 +33,7 @@ function every(minutes, name, fn) {
 }
 
 const timers = [
-  every(Number(process.env.GMAIL_SYNC_MINUTES) || 5, 'gmail-sync', () => syncAllGmail({ fieldCrypto, notifier, classify })),
+  every(Number(process.env.GMAIL_SYNC_MINUTES) || 5, 'gmail-sync', () => syncAllGmail({ fieldCrypto, notifier, classify, classifyBatch })),
   every(60, 'retention', runRetention),
 ];
 

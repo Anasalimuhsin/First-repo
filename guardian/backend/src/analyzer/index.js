@@ -3,6 +3,7 @@
 
 import { scoreText, maxSeverity, ALERT_THRESHOLD, REVIEW_THRESHOLD } from './ruleEngine.js';
 import { CATEGORIES } from './lexicon.js';
+import { triage } from './triage.js';
 
 const NO_ALERT = Object.freeze({ alert: false });
 
@@ -42,16 +43,23 @@ function ruleDecision(top) {
  * @param {object} [options]
  * @param {Function|null} [options.classify]  Async LLM classifier
  *        (see llmClassifier.js). Pass null to run rules only.
+ * @param {boolean} [options.reviewAll]  Ask the LLM about every message, not
+ *        only rule/triage-flagged ones (GUARDIAN_LLM_REVIEW=all).
  */
-export async function analyzeMessage(input, { classify = null } = {}) {
+export async function analyzeMessage(input, { classify = null, reviewAll = false } = {}) {
   const hits = scoreText(input.text);
   const top = hits[0];
-  if (!top || top.score < REVIEW_THRESHOLD) return NO_ALERT;
+  const ruleSignal = Boolean(top && top.score >= REVIEW_THRESHOLD);
 
-  const rules = ruleDecision(top);
-  if (!classify) return rules;
+  if (!classify) return ruleSignal ? ruleDecision(top) : NO_ALERT;
 
-  const llm = await classify({ ...input, ruleHits: hits });
+  // With an LLM available, also review messages that only the broad triage
+  // flagged: exact-phrase rules miss most paraphrased risk.
+  const triaged = ruleSignal ? [] : triage(input.text);
+  if (!ruleSignal && triaged.length === 0 && !reviewAll) return NO_ALERT;
+
+  const rules = ruleSignal ? ruleDecision(top) : NO_ALERT;
+  const llm = await classify({ ...input, ruleHits: hits, triageCategories: triaged });
   if (!llm) return rules; // LLM unavailable → rules decide alone
 
   // Safety floor: critical hits and self-harm signals always alert, whatever
@@ -78,7 +86,7 @@ export async function analyzeMessage(input, { classify = null } = {}) {
     category: llm.category,
     severity: ruleForLlmCategory ? maxSeverity(llm.severity, ruleForLlmCategory.severity) : llm.severity,
     confidence: llm.confidence,
-    detector: 'rules+llm',
+    detector: ruleSignal ? 'rules+llm' : 'llm',
     matchedTerms: ruleForLlmCategory?.matchedTerms ?? [],
     rationaleAr: llm.rationaleAr,
   });

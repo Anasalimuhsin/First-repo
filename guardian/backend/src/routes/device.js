@@ -48,7 +48,7 @@ const LocationsBody = z.object({
   })).min(1).max(MAX_BATCH),
 });
 
-export function deviceRouter({ fieldCrypto, notifier, classify, pairLimiter }) {
+export function deviceRouter({ fieldCrypto, notifier, classify, classifyBatch, pairLimiter }) {
   const router = Router();
 
   /**
@@ -101,7 +101,7 @@ export function deviceRouter({ fieldCrypto, notifier, classify, pairLimiter }) {
     const { items } = parse(MessagesBody, req.body);
     const created = await processTextItems({
       childId: req.device.childId, deviceId: req.device.id, items,
-      scopes: req.device.scopes, classify, fieldCrypto, notifier,
+      scopes: req.device.scopes, classify, classifyBatch, fieldCrypto, notifier,
     });
     // The device learns only how many alerts were raised, never their content.
     res.json({ received: items.length, alertsCreated: created.length });

@@ -10,7 +10,7 @@ import { processTextItems } from '../services/alerts.js';
 
 const FIRST_SYNC_LOOKBACK_MS = 24 * 3600 * 1000;
 
-export async function syncGmailAccount(account, { config, fieldCrypto, notifier, classify, fetchImpl = fetch }) {
+export async function syncGmailAccount(account, { config, fieldCrypto, notifier, classify, classifyBatch = null, fetchImpl = fetch }) {
   let tokens = JSON.parse(fieldCrypto.decrypt(account.oauth_tokens_enc, account.child_id));
   const refreshed = await refreshAccessToken(config, tokens, fetchImpl);
   if (refreshed !== tokens) {
@@ -29,7 +29,7 @@ export async function syncGmailAccount(account, { config, fieldCrypto, notifier,
   }
 
   const created = items.length
-    ? await processTextItems({ childId: account.child_id, items, scopes: account.scopes, classify, fieldCrypto, notifier })
+    ? await processTextItems({ childId: account.child_id, items, scopes: account.scopes, classify, classifyBatch, fieldCrypto, notifier })
     : [];
   const newCursor = Math.max(cursor, ...items.map((i) => i.internalDate));
   await pool.query(

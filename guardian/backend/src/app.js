@@ -19,12 +19,13 @@ import { privacyRouter } from './routes/privacy.js';
  * @param {object} deps
  * @param {object} deps.fieldCrypto
  * @param {object} deps.notifier
- * @param {Function|null} deps.classify
+ * @param {Function|null} deps.classify       single-message LLM classifier (null = rules only)
+ * @param {Function|null} [deps.classifyBatch] batch LLM classifier for GUARDIAN_LLM_REVIEW=all
  * @param {object} deps.consentVerifier
  * @param {object} [deps.env]
  * @param {Function} [deps.fetchImpl]  outbound HTTP (Google OAuth), injectable for tests
  */
-export function createApp({ fieldCrypto, notifier, classify, consentVerifier, env = process.env, fetchImpl = fetch }) {
+export function createApp({ fieldCrypto, notifier, classify, classifyBatch = null, consentVerifier, env = process.env, fetchImpl = fetch }) {
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', Number(env.TRUST_PROXY_HOPS ?? 1)); // TLS terminates at the load balancer
@@ -50,7 +51,7 @@ export function createApp({ fieldCrypto, notifier, classify, consentVerifier, en
   });
 
   app.use('/v1/auth', authRouter({ fieldCrypto, authLimiter }));
-  app.use('/v1/device', deviceRouter({ fieldCrypto, notifier, classify, pairLimiter }));
+  app.use('/v1/device', deviceRouter({ fieldCrypto, notifier, classify, classifyBatch, pairLimiter }));
   app.use('/v1/oauth', oauthCallbackRouter({ fieldCrypto, webAppUrl: env.WEB_APP_URL ?? 'http://localhost:3001', fetchImpl }));
 
   const parent = Router();

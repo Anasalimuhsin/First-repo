@@ -16,24 +16,32 @@ function escapeRegex(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function compileTerm(phrase, isArabic) {
-  const words = normalize(phrase).split(' ').map(escapeRegex);
-  const body = words.join('\\s+');
+const phraseToPattern = (phrase) => normalize(phrase).split(' ').map(escapeRegex).join('\\s+');
+
+function compileTerm(phrase, isArabic, notFollowedBy = []) {
   const prefix = isArabic ? AR_PREFIX : '';
-  return new RegExp(`${BOUNDARY_BEFORE}${prefix}${body}${BOUNDARY_AFTER}`, 'u');
+  const guard = notFollowedBy.length ? `(?!\\s+(?:${notFollowedBy.map(phraseToPattern).join('|')})${BOUNDARY_AFTER})` : '';
+  return new RegExp(`${BOUNDARY_BEFORE}${prefix}${phraseToPattern(phrase)}${BOUNDARY_AFTER}${guard}`, 'u');
 }
 
 function compileLexicon(categories) {
   const compiled = [];
   for (const [category, def] of Object.entries(categories)) {
     def.terms.forEach((term, index) => {
-      for (const [lang, phrase] of [['ar', term.ar], ['en', term.en]]) {
-        if (!phrase) continue;
+      // ar / en / az may each be a string or an array of variants.
+      // az = Arabizi (Arabic in Latin letters + digits). It goes through the
+      // same normalization as the message, so "3" / "7" spellings line up.
+      const variants = [
+        ...[term.ar ?? []].flat().map((p) => ['ar', p]),
+        ...[term.en ?? []].flat().map((p) => ['en', p]),
+        ...[term.az ?? []].flat().map((p) => ['az', p]),
+      ];
+      for (const [lang, phrase] of variants) {
         compiled.push({
           id: `${category}:${index}`,
           category,
           phrase,
-          regex: compileTerm(phrase, lang === 'ar'),
+          regex: compileTerm(phrase, lang === 'ar', def.notFollowedBy),
           weight: term.weight,
           severity: term.severity,
         });

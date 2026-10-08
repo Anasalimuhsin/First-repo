@@ -5,6 +5,7 @@ import { pool } from '../lib/db.js';
 import { parentPushTokens } from '../lib/auth.js';
 import { analyzeMessage } from '../analyzer/index.js';
 import { CATEGORIES, SEVERITIES } from '../analyzer/lexicon.js';
+import { MAX_BATCH } from '../analyzer/llmClassifier.js';
 
 export const EXCERPT_LENGTH = 280;
 
@@ -46,20 +47,45 @@ async function notifyParents(childId, created, notifier) {
 }
 
 /**
+ * Pre-classify every item in batches (GUARDIAN_LLM_REVIEW=all). Returns an
+ * array of per-item results (null entries = not classified).
+ */
+async function batchReview(items, classifyBatch) {
+  const results = [];
+  for (let i = 0; i < items.length; i += MAX_BATCH) {
+    const chunk = items.slice(i, i + MAX_BATCH);
+    results.push(...((await classifyBatch(chunk)) ?? chunk.map(() => null)));
+  }
+  return results;
+}
+
+/**
  * Analyse text items and store alerts for the risky ones. Text is never stored
  * beyond the short encrypted excerpt of an alert.
  *
  * @param {object} p
  * @param {Array<{source, direction, text, occurredAt}>} p.items
- * @param {string[]} p.scopes   active consent scopes for the child
+ * @param {string[]} p.scopes          active consent scopes for the child
+ * @param {Function|null} p.classify   single-message LLM classifier
+ * @param {Function|null} [p.classifyBatch]  batch classifier, used when
+ *        GUARDIAN_LLM_REVIEW=all (every message reviewed, not only flagged ones)
  */
-export async function processTextItems({ childId, deviceId = null, items, scopes, classify, fieldCrypto, notifier }) {
-  const llm = scopes.includes('llm_analysis') ? classify : null;
+export async function processTextItems({
+  childId, deviceId = null, items, scopes, classify, classifyBatch = null, fieldCrypto, notifier,
+  reviewMode = process.env.GUARDIAN_LLM_REVIEW,
+}) {
+  const llmAllowed = scopes.includes('llm_analysis');
   const settings = await loadSettings(childId);
+  const reviewAll = llmAllowed && reviewMode === 'all' && Boolean(classifyBatch);
+  const batchResults = reviewAll ? await batchReview(items, classifyBatch) : null;
 
   const created = [];
-  for (const item of items) {
-    const decision = await analyzeMessage(item, { classify: llm });
+  for (const [i, item] of items.entries()) {
+    const pre = batchResults?.[i];
+    const decision = await analyzeMessage(item, pre
+      ? { classify: async () => pre, reviewAll: true }
+      // No batch result: review only flagged messages, one at a time.
+      : { classify: llmAllowed ? classify : null });
     if (!decision.alert || !passesSettings(settings, decision.category, decision.severity)) continue;
     const id = await insertAlert({
       childId, deviceId, source: item.source, direction: item.direction, decision,

@@ -15,7 +15,8 @@
     "test:api": "node --test --test-concurrency=1 'test/api/*.test.js'",
     "db:schema": "psql \"$DATABASE_URL\" -f db/schema.sql",
     "analyze": "node scripts/analyze.js",
-    "seed": "node scripts/seed-dev.js"
+    "seed": "node scripts/seed-dev.js",
+    "eval": "node scripts/eval.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.132.1",

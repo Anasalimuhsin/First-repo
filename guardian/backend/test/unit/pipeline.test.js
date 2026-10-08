@@ -49,3 +49,29 @@ test('falls back to rules when the LLM is unavailable', async () => {
   assert.equal(r.detector, 'rules');
   assert.equal(r.alert, true);
 });
+
+test('without an LLM, triage-only messages never alert', async () => {
+  const r = await analyzeMessage(msg("i'm a burden, i won't be around much longer"));
+  assert.equal(r.alert, false);
+});
+
+test('with an LLM, triage-flagged messages are reviewed', async () => {
+  let seen;
+  const r = await analyzeMessage(msg('حطيت الحبوب جنبي والليلة بخلص'), {
+    classify: async (input) => { seen = input; return { category: 'self_harm', severity: 'critical', confidence: 0.9, rationaleAr: 'خطة واضحة' }; },
+  });
+  assert.ok(seen.triageCategories.includes('self_harm'));
+  assert.equal(r.alert, true);
+  assert.equal(r.detector, 'llm');
+  assert.equal(r.severity, 'critical');
+});
+
+test('unflagged messages skip the LLM unless reviewAll is set', async () => {
+  let calls = 0;
+  const classify = async () => { calls += 1; return { category: 'self_harm', severity: 'high', confidence: 0.8, rationaleAr: '' }; };
+  assert.equal((await analyzeMessage(msg("i'm a burden to everyone"), { classify })).alert, false);
+  assert.equal(calls, 0);
+  const r = await analyzeMessage(msg("i'm a burden to everyone"), { classify, reviewAll: true });
+  assert.equal(calls, 1);
+  assert.equal(r.alert, true);
+});

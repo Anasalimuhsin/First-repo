@@ -13,7 +13,7 @@ export const skip = process.env.TEST_DATABASE_URL ? false : 'TEST_DATABASE_URL n
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 /** Boots the app on a random port with fakes for push, Google and Stripe. */
-export async function startApp({ fetchImpl } = {}) {
+export async function startApp({ fetchImpl, classify = null, classifyBatch = null } = {}) {
   Object.assign(process.env, {
     NODE_ENV: 'test',
     DATABASE_URL: process.env.TEST_DATABASE_URL,
@@ -37,7 +37,7 @@ export async function startApp({ fetchImpl } = {}) {
     geofenceEvent: async (n) => { notifications.push({ type: 'geofence', ...n }); },
   };
   const app = createApp({
-    fieldCrypto, notifier, classify: null,
+    fieldCrypto, notifier, classify, classifyBatch,
     consentVerifier: createConsentVerifier({ env: { NODE_ENV: 'test' } }),
     env: { ...process.env, WEB_APP_URL: 'http://web.test' },
     fetchImpl,
