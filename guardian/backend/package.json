@@ -13,7 +13,7 @@
     "retention": "node -e \"import('./src/jobs/retention.js').then(async m => { console.log(await m.runRetention()); process.exit(0) })\"",
     "test": "node --test 'test/unit/*.test.js'",
     "test:api": "node --test --test-concurrency=1 'test/api/*.test.js'",
-    "db:schema": "psql \"$DATABASE_URL\" -f db/schema.sql",
+    "db:migrate": "node scripts/migrate.js",
     "analyze": "node scripts/analyze.js",
     "seed": "node scripts/seed-dev.js",
     "eval": "node scripts/eval.js"

@@ -4,13 +4,8 @@
 // (npm run test:api passes --test-concurrency=1).
 
 import crypto from 'node:crypto';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 export const skip = process.env.TEST_DATABASE_URL ? false : 'TEST_DATABASE_URL not set';
-
-const here = path.dirname(fileURLToPath(import.meta.url));
 
 /** Boots the app on a random port with fakes for push, Google and Stripe. */
 export async function startApp({ fetchImpl, classify = null, classifyBatch = null } = {}) {
@@ -24,7 +19,8 @@ export async function startApp({ fetchImpl, classify = null, classifyBatch = nul
   });
   const { pool } = await import('../../src/lib/db.js');
   await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
-  await pool.query(await fs.readFile(path.join(here, '../../db/schema.sql'), 'utf8'));
+  const { migrate } = await import('../../scripts/migrate.js');
+  await migrate(pool, () => {});
 
   const { createApp } = await import('../../src/app.js');
   const { createFieldCrypto } = await import('../../src/lib/fieldCrypto.js');

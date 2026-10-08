@@ -1,0 +1,72 @@
+# Local / staging stack: PostgreSQL, migrations, API, worker, parent dashboard.
+#   cp .env.example .env   # then fill in GUARDIAN_DATA_KEYS (openssl rand -base64 32)
+#   docker compose up --build
+# Dashboard: http://localhost:3001 · API: http://localhost:3000
+# Production: put TLS in front (load balancer / reverse proxy), use a managed
+# PostgreSQL with TLS, and load data keys from KMS (GUARDIAN_DATA_KEYS_KMS).
+
+x-api-env: &api-env
+  NODE_ENV: ${NODE_ENV:-development}
+  DATABASE_URL: postgres://guardian:${POSTGRES_PASSWORD:-guardian}@db:5432/guardian
+  DATABASE_SSL: "false"
+  GUARDIAN_DATA_KEYS: ${GUARDIAN_DATA_KEYS:?set GUARDIAN_DATA_KEYS in .env}
+  WEB_APP_URL: ${WEB_APP_URL:-http://localhost:3001}
+  PRIVACY_POLICY_VERSION: ${PRIVACY_POLICY_VERSION:-2026-10}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  GUARDIAN_LLM_REVIEW: ${GUARDIAN_LLM_REVIEW:-}
+  GUARDIAN_LLM_MODEL: ${GUARDIAN_LLM_MODEL:-}
+  FIREBASE_SERVICE_ACCOUNT: ${FIREBASE_SERVICE_ACCOUNT:-}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:3000/v1/oauth/gmail/callback}
+  STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+  TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-0}
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: guardian
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-guardian}
+      POSTGRES_DB: guardian
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U guardian"]
+      interval: 3s
+      retries: 20
+
+  migrate:
+    image: guardian-backend
+    build: ./backend
+    command: ["node", "scripts/migrate.js"]
+    environment: *api-env
+    depends_on: { db: { condition: service_healthy } }
+
+  api:
+    image: guardian-backend
+    build: ./backend
+    environment: *api-env
+    ports: ["3000:3000"]
+    depends_on: { migrate: { condition: service_completed_successfully } }
+
+  worker:
+    image: guardian-backend
+    build: ./backend
+    command: ["node", "src/worker.js"]
+    environment: *api-env
+    healthcheck: { disable: true } # no HTTP server in the worker
+    depends_on: { migrate: { condition: service_completed_successfully } }
+
+  web:
+    image: guardian-web
+    build:
+      context: ./web
+      args:
+        NEXT_PUBLIC_API_PUBLIC_URL: ${API_PUBLIC_URL:-http://localhost:3000}
+    environment:
+      API_URL: http://api:3000
+    ports: ["3001:3001"]
+    depends_on: [api]
+
+volumes:
+  pgdata:
