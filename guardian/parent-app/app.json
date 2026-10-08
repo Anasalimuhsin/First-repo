@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "Guardian للوالدين",
+    "slug": "guardian-parent",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.example.guardian.parent"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.example.guardian.parent"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "color": "#0f6e6a"
+        }
+      ]
+    ],
+    "scheme": "guardian-parent",
+    "extra": {
+      "apiUrl": "http://10.0.2.2:3000",
+      "eas": {
+        "projectId": ""
+      },
+      "emergencyNumber": "911"
+    }
+  }
+}
