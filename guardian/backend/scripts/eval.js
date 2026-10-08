@@ -22,7 +22,22 @@ const opt = (name, fallback) => {
 const file = opt('--file', new URL('../eval/synthetic.jsonl', import.meta.url).pathname);
 const minSelfHarmRecall = Number(opt('--min-self-harm-recall', 0));
 const reviewAll = args.includes('--review-all');
-const classify = args.includes('--llm') ? (await import('../src/analyzer/llmClassifier.js')).classifyWithLLM : null;
+const useLlm = args.includes('--llm');
+if (useLlm && !process.env.ANTHROPIC_API_KEY) {
+  console.error('--llm needs ANTHROPIC_API_KEY; refusing to run (results would silently be rules-only).');
+  process.exit(2);
+}
+// Count LLM calls and failures: a failed call falls back to rules, which
+// must not be mistaken for the model's own judgement.
+const llmStats = { calls: 0, failed: 0 };
+const classify = useLlm
+  ? await import('../src/analyzer/llmClassifier.js').then(({ classifyWithLLM }) => async (input) => {
+    llmStats.calls += 1;
+    const r = await classifyWithLLM(input);
+    if (!r) llmStats.failed += 1;
+    return r;
+  })
+  : null;
 
 const rows = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
 const labels = [...Object.keys(CATEGORIES), 'none'];
@@ -48,7 +63,7 @@ for (const row of rows) {
 }
 
 const pct = (n) => (Number.isFinite(n) ? `${(n * 100).toFixed(0)}%` : '  -');
-console.log(`\n${rows.length} examples · ${classify ? `rules + LLM${reviewAll ? ' (review all)' : ''}` : 'rules only'} · ${file}\n`);
+console.log(`\n${rows.length} examples · ${classify ? `rules + ${process.env.GUARDIAN_LLM_MODEL || 'claude-opus-5-5'}${reviewAll ? ' (review all)' : ''}` : 'rules only'} · ${file}\n`);
 console.log('category       precision  recall   f1     (tp/fp/fn)');
 const summary = {};
 for (const l of labels) {
@@ -64,6 +79,7 @@ const caught = alerts.filter((r) => !errors.some((e) => e.text === r.text && e.p
 const falseAlarms = errors.filter((e) => e.expected === 'none').length;
 console.log(`\nany-risk recall: ${pct(caught / alerts.length)} · false alarms on safe messages: ${falseAlarms}/${rows.length - alerts.length}`);
 
+if (classify) console.log(`LLM calls: ${llmStats.calls} · failed (fell back to rules): ${llmStats.failed}`);
 console.log(`reaches LLM review (if enabled): ${pct(review.riskyReviewed / review.risky)} of risky · ${pct(review.safeReviewed / review.safe)} of safe messages`);
 if (review.missed.length) console.log(`never reviewed: ${review.missed.map((t) => JSON.stringify(t)).join(', ')}`);
 

@@ -16,7 +16,8 @@
     "db:migrate": "node scripts/migrate.js",
     "analyze": "node scripts/analyze.js",
     "seed": "node scripts/seed-dev.js",
-    "eval": "node scripts/eval.js"
+    "eval": "node scripts/eval.js",
+    "eval:claude": "for f in synthetic holdout fresh; do node scripts/eval.js --llm --review-all --file eval/$f.jsonl || exit 1; done"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.132.1",
