@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import { createFieldCrypto } from '../src/lib/fieldCrypto.js';
+import { createFieldCrypto } from '../../src/lib/fieldCrypto.js';
 
 const key = () => crypto.randomBytes(32).toString('base64');
 

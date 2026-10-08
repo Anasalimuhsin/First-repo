@@ -3,16 +3,21 @@
 
 import { withTransaction, pool } from '../src/lib/db.js';
 import { generateToken, hashToken } from '../src/lib/fieldCrypto.js';
+import { hashPassword } from '../src/lib/passwords.js';
+
+const DEV_PASSWORD = 'guardian-dev-123';
 
 const parentToken = generateToken();
 const deviceToken = generateToken();
+
+const email = `parent+${Date.now()}@example.com`;
 
 const ids = await withTransaction(async (db) => {
   const one = async (sql, params) => (await db.query(sql, params)).rows[0].id;
 
   const parentId = await one(
-    `INSERT INTO parents (email, password_hash, full_name) VALUES ($1, 'dev-only', 'ولي أمر تجريبي') RETURNING id`,
-    [`parent+${Date.now()}@example.com`],
+    `INSERT INTO parents (email, password_hash, full_name) VALUES ($1, $2, 'ولي أمر تجريبي') RETURNING id`,
+    [email, await hashPassword(DEV_PASSWORD)],
   );
   const familyId = await one(`INSERT INTO families (name) VALUES ('عائلة تجريبية') RETURNING id`);
   await db.query(`INSERT INTO family_members (family_id, parent_id, role) VALUES ($1, $2, 'owner')`, [familyId, parentId]);
@@ -50,5 +55,5 @@ const ids = await withTransaction(async (db) => {
   return { parentId, childId, deviceId };
 });
 
-console.log(JSON.stringify({ ...ids, parentToken, deviceToken }, null, 2));
+console.log(JSON.stringify({ ...ids, email, password: DEV_PASSWORD, parentToken, deviceToken }, null, 2));
 await pool.end();

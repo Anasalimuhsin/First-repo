@@ -30,10 +30,11 @@ CREATE TYPE filter_target  AS ENUM ('domain', 'web_category', 'app');
 CREATE TABLE parents (
   id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   email          citext NOT NULL UNIQUE,
-  password_hash  text   NOT NULL,           -- argon2id
+  password_hash  text   NOT NULL,           -- scrypt (see src/lib/passwords.js)
   full_name      text   NOT NULL,
   locale         text   NOT NULL DEFAULT 'ar',
   mfa_secret_enc text,                       -- TOTP secret, encrypted
+  mfa_enabled    boolean NOT NULL DEFAULT false,
   created_at     timestamptz NOT NULL DEFAULT now(),
   deleted_at     timestamptz
 );
@@ -80,6 +81,7 @@ CREATE TABLE consents (
   policy_version   text NOT NULL,
   scopes           text[] NOT NULL,          -- e.g. {content_monitoring,location,screen_time,llm_analysis}
   method           text NOT NULL,            -- e.g. 'card_verification', 'signed_form', 'id_check'
+  verification_ref text,                     -- provider reference, e.g. Stripe SetupIntent id
   child_notified   boolean NOT NULL DEFAULT false,  -- age-appropriate notice shown to the child
   granted_at       timestamptz NOT NULL DEFAULT now(),
   revoked_at       timestamptz
@@ -101,16 +103,39 @@ CREATE TABLE devices (
 );
 CREATE INDEX devices_child_idx ON devices (child_id);
 
--- Accounts monitored via official APIs/OAuth (e.g. Gmail, YouTube).
+-- One-time codes a parent generates to pair a child's device (shown as QR).
+CREATE TABLE pairing_codes (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  child_id    uuid NOT NULL REFERENCES children(id) ON DELETE CASCADE,
+  created_by  uuid NOT NULL REFERENCES parents(id) ON DELETE CASCADE,
+  code_hash   text NOT NULL UNIQUE,
+  expires_at  timestamptz NOT NULL,
+  used_at     timestamptz
+);
+
+-- Accounts monitored via official APIs/OAuth (e.g. Gmail).
 CREATE TABLE monitored_accounts (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   child_id         uuid NOT NULL REFERENCES children(id) ON DELETE CASCADE,
   source           content_source NOT NULL,
-  handle_hash      text NOT NULL,            -- hashed username, not the plaintext
+  provider         text NOT NULL,            -- 'gmail'
+  handle_hash      text NOT NULL,            -- hashed address/username, not the plaintext
   oauth_tokens_enc text,                     -- encrypted refresh/access token JSON
+  sync_cursor      text,                     -- provider-specific position (Gmail: last internalDate ms)
+  last_synced_at   timestamptz,
+  last_error       text,
   connected_at     timestamptz NOT NULL DEFAULT now(),
   disconnected_at  timestamptz,
-  UNIQUE (child_id, source, handle_hash)
+  UNIQUE (child_id, provider, handle_hash)
+);
+
+-- CSRF state for OAuth connect flows; single use, short-lived.
+CREATE TABLE oauth_states (
+  state_hash  text PRIMARY KEY,
+  parent_id   uuid NOT NULL REFERENCES parents(id) ON DELETE CASCADE,
+  child_id    uuid NOT NULL REFERENCES children(id) ON DELETE CASCADE,
+  provider    text NOT NULL,
+  expires_at  timestamptz NOT NULL
 );
 
 -- ───────────────────── Content monitoring & alerts ─────────────────────
@@ -254,7 +279,6 @@ CREATE TABLE audit_log (
 CREATE INDEX audit_log_child_idx ON audit_log (child_id, at DESC);
 
 -- ───────────────────── Retention ─────────────────────
--- Run daily (pg_cron or an external scheduler):
---   DELETE FROM alerts          WHERE expires_at < now();
---   DELETE FROM location_points WHERE expires_at < now();
---   DELETE FROM geofence_events WHERE expires_at < now();
+-- Enforced by src/jobs/retention.js (run by src/worker.js every hour), which
+-- deletes expired alerts, locations, geofence events, sessions, pairing codes,
+-- OAuth states and audit entries older than one year.

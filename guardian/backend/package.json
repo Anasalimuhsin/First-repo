@@ -4,17 +4,30 @@
   "private": true,
   "description": "Guardian child-safety backend: content analysis, alerts, screen-time policy and geofencing.",
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node src/server.js",
-    "test": "node --test",
+    "worker": "node src/worker.js",
+    "retention": "node -e \"import('./src/jobs/retention.js').then(async m => { console.log(await m.runRetention()); process.exit(0) })\"",
+    "test": "node --test 'test/unit/*.test.js'",
+    "test:api": "node --test --test-concurrency=1 'test/api/*.test.js'",
     "db:schema": "psql \"$DATABASE_URL\" -f db/schema.sql",
     "analyze": "node scripts/analyze.js",
     "seed": "node scripts/seed-dev.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.132.1",
+    "@aws-sdk/client-kms": "^3.1147.0",
+    "cors": "^2.8.6",
     "express": "^5.2.1",
-    "pg": "^8.23.1"
+    "express-rate-limit": "^8.7.1",
+    "firebase-admin": "^14.5.0",
+    "helmet": "^8.3.0",
+    "pg": "^8.23.1",
+    "pino": "^10.4.0",
+    "pino-http": "^11.0.0",
+    "zod": "^4.6.5"
   }
 }

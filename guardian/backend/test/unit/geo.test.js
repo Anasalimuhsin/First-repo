@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { distanceMeters, evaluateGeofence } from '../src/lib/geo.js';
+import { distanceMeters, evaluateGeofence } from '../../src/lib/geo.js';
 
 const school = { lat: 24.7136, lng: 46.6753, radiusM: 150 };
 // ~0.001° latitude ≈ 111 m

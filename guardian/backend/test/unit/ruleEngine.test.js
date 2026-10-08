@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { scoreText } from '../src/analyzer/ruleEngine.js';
+import { scoreText } from '../../src/analyzer/ruleEngine.js';
 
 const top = (text) => scoreText(text)[0];
 

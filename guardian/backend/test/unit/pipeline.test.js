@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { analyzeMessage } from '../src/analyzer/index.js';
+import { analyzeMessage } from '../../src/analyzer/index.js';
 
 const msg = (text) => ({ text, source: 'sms', direction: 'incoming' });
 const fakeLlm = (result) => async () => result;

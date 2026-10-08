@@ -3,104 +3,129 @@
 import { Router } from 'express';
 import { pool, withTransaction } from '../lib/db.js';
 import { requireDevice, requireScope, parentPushTokens, HttpError } from '../lib/auth.js';
+import { hashToken, generateToken } from '../lib/fieldCrypto.js';
 import { evaluateGeofence } from '../lib/geo.js';
-import { analyzeMessage } from '../analyzer/index.js';
-import { SEVERITIES } from '../analyzer/lexicon.js';
+import { parse, z, isoDate, latitude, longitude } from '../lib/validate.js';
+import { processTextItems, processImageSignals, IMAGE_LABELS } from '../services/alerts.js';
 
-const SOURCES = new Set(['sms', 'email', 'instagram', 'tiktok', 'snapchat', 'whatsapp', 'discord', 'youtube', 'web', 'other']);
+export const SOURCES = ['sms', 'email', 'instagram', 'tiktok', 'snapchat', 'whatsapp', 'discord', 'youtube', 'web', 'other'];
 const MAX_BATCH = 100;
-const MAX_TEXT = 10_000;
-const EXCERPT_LENGTH = 280;
 
-function parseDate(value, field) {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) throw new HttpError(400, `${field} must be an ISO date`);
-  return d;
-}
+const direction = z.enum(['incoming', 'outgoing']);
 
-export function deviceRouter({ fieldCrypto, notifier, classify }) {
+const PairBody = z.object({
+  code: z.string().regex(/^\d{8}$/, 'expected an 8-digit code'),
+  platform: z.enum(['ios', 'android']),
+  model: z.string().max(100).optional(),
+  appVersion: z.string().max(30).optional(),
+});
+
+const MessagesBody = z.object({
+  items: z.array(z.object({
+    source: z.enum(SOURCES),
+    direction,
+    text: z.string().max(10_000),
+    occurredAt: isoDate,
+  })).min(1).max(MAX_BATCH),
+});
+
+const ImageSignalsBody = z.object({
+  items: z.array(z.object({
+    source: z.enum(SOURCES),
+    direction,
+    occurredAt: isoDate,
+    labels: z.array(z.object({ label: z.string().max(40), score: z.number().min(0).max(1) })).max(20),
+  })).min(1).max(MAX_BATCH),
+});
+
+const LocationsBody = z.object({
+  points: z.array(z.object({
+    lat: latitude,
+    lng: longitude,
+    accuracyM: z.number().min(0).max(100_000).optional(),
+    batteryPct: z.number().int().min(0).max(100).optional(),
+    recordedAt: isoDate,
+  })).min(1).max(MAX_BATCH),
+});
+
+export function deviceRouter({ fieldCrypto, notifier, classify, pairLimiter }) {
   const router = Router();
+
+  /**
+   * POST /v1/device/pair  { code, platform, model?, appVersion? }
+   * Exchanges a one-time code (created by a parent) for a device token.
+   * Unauthenticated, so it is rate limited.
+   */
+  router.post('/pair', pairLimiter, async (req, res) => {
+    const body = parse(PairBody, req.body);
+    const deviceToken = generateToken();
+
+    const result = await withTransaction(async (db) => {
+      const { rows } = await db.query(
+        `UPDATE pairing_codes SET used_at = now()
+          WHERE code_hash = $1 AND used_at IS NULL AND expires_at > now()
+          RETURNING child_id`,
+        [hashToken(body.code)],
+      );
+      if (!rows[0]) throw new HttpError(400, 'Invalid or expired code');
+      const childId = rows[0].child_id;
+      const { rows: [device] } = await db.query(
+        `INSERT INTO devices (child_id, platform, model, app_version, token_hash)
+         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+        [childId, body.platform, body.model ?? null, body.appVersion ?? null, hashToken(deviceToken)],
+      );
+      const { rows: [child] } = await db.query('SELECT display_name FROM children WHERE id = $1', [childId]);
+      return { deviceId: device.id, childId, displayName: child.display_name };
+    });
+
+    res.status(201).json({ deviceToken, ...result });
+  });
+
   router.use(requireDevice);
+
+  /**
+   * GET /v1/device/me — what is being monitored, for the child's
+   * transparency screen.
+   */
+  router.get('/me', async (req, res) => {
+    const { rows: [child] } = await pool.query('SELECT display_name FROM children WHERE id = $1', [req.device.childId]);
+    res.json({ deviceId: req.device.id, displayName: child.display_name, scopes: req.device.scopes });
+  });
 
   /**
    * POST /v1/device/messages
    * { items: [{ source, direction, text, occurredAt }] }
-   *
    * Text is analysed in memory and discarded. Only alerts are persisted.
    */
   router.post('/messages', requireScope('content_monitoring'), async (req, res) => {
-    const items = req.body?.items;
-    if (!Array.isArray(items) || items.length === 0 || items.length > MAX_BATCH) {
-      throw new HttpError(400, `items must be an array of 1..${MAX_BATCH}`);
-    }
-    for (const item of items) {
-      if (!SOURCES.has(item.source)) throw new HttpError(400, `Unknown source "${item.source}"`);
-      if (!['incoming', 'outgoing'].includes(item.direction)) throw new HttpError(400, 'Invalid direction');
-      if (typeof item.text !== 'string' || item.text.length > MAX_TEXT) throw new HttpError(400, 'Invalid text');
-      item.occurredAt = parseDate(item.occurredAt, 'occurredAt');
-    }
-
-    const { childId } = req.device;
-    const llmAllowed = req.device.scopes.includes('llm_analysis') ? classify : null;
-
-    const { rows: settingRows } = await pool.query(
-      'SELECT category, enabled, min_severity FROM alert_settings WHERE child_id = $1',
-      [childId],
-    );
-    const settings = new Map(settingRows.map((r) => [r.category, r]));
-
-    const created = [];
-    for (const item of items) {
-      const result = await analyzeMessage(item, { classify: llmAllowed });
-      if (!result.alert) continue;
-
-      const setting = settings.get(result.category) ?? { enabled: true, min_severity: 'medium' };
-      if (!setting.enabled) continue;
-      if (SEVERITIES.indexOf(result.severity) < SEVERITIES.indexOf(setting.min_severity)) continue;
-
-      const excerpt = item.text.slice(0, EXCERPT_LENGTH);
-      const { rows } = await pool.query(
-        `INSERT INTO alerts (child_id, device_id, source, direction, category, severity, confidence,
-                             detector, matched_terms, excerpt_enc, rationale_ar, occurred_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-         RETURNING id`,
-        [childId, req.device.id, item.source, item.direction, result.category, result.severity,
-         result.confidence, result.detector, result.matchedTerms,
-         fieldCrypto.encrypt(excerpt, childId), result.rationaleAr, item.occurredAt],
-      );
-      created.push({ id: rows[0].id, category: result.category, severity: result.severity, labelAr: result.labelAr });
-    }
-
-    if (created.length > 0) {
-      const [{ display_name: childName }] = (
-        await pool.query('SELECT display_name FROM children WHERE id = $1', [childId])
-      ).rows;
-      const tokens = await parentPushTokens(childId);
-      for (const alert of created) {
-        await notifier.alertCreated({ parentPushTokens: tokens, childName, alertId: alert.id, ...alert });
-      }
-    }
-
-    // The device learns only how many alerts were raised, never their content,
-    // so a child can't use the response to probe the filter.
+    const { items } = parse(MessagesBody, req.body);
+    const created = await processTextItems({
+      childId: req.device.childId, deviceId: req.device.id, items,
+      scopes: req.device.scopes, classify, fieldCrypto, notifier,
+    });
+    // The device learns only how many alerts were raised, never their content.
     res.json({ received: items.length, alertsCreated: created.length });
   });
 
   /**
+   * POST /v1/device/image-signals
+   * { items: [{ source, direction, occurredAt, labels: [{ label, score }] }] }
+   * Results of the on-device image classifier. Images never leave the device.
+   */
+  router.post('/image-signals', requireScope('content_monitoring'), async (req, res) => {
+    const { items } = parse(ImageSignalsBody, req.body);
+    const created = await processImageSignals({
+      childId: req.device.childId, deviceId: req.device.id, items, fieldCrypto, notifier,
+    });
+    res.json({ received: items.length, alertsCreated: created.length, knownLabels: Object.keys(IMAGE_LABELS) });
+  });
+
+  /**
    * POST /v1/device/locations
-   * { points: [{ lat, lng, accuracyM, batteryPct, recordedAt }] }  (oldest first)
+   * { points: [{ lat, lng, accuracyM, batteryPct, recordedAt }] }
    */
   router.post('/locations', requireScope('location'), async (req, res) => {
-    const points = req.body?.points;
-    if (!Array.isArray(points) || points.length === 0 || points.length > MAX_BATCH) {
-      throw new HttpError(400, `points must be an array of 1..${MAX_BATCH}`);
-    }
-    for (const p of points) {
-      if (!Number.isFinite(p.lat) || Math.abs(p.lat) > 90 || !Number.isFinite(p.lng) || Math.abs(p.lng) > 180) {
-        throw new HttpError(400, 'Invalid coordinates');
-      }
-      p.recordedAt = parseDate(p.recordedAt, 'recordedAt');
-    }
+    const points = parse(LocationsBody, req.body).points.sort((a, b) => a.recordedAt - b.recordedAt);
     const { childId } = req.device;
 
     const events = await withTransaction(async (db) => {
@@ -146,11 +171,9 @@ export function deviceRouter({ fieldCrypto, notifier, classify }) {
     });
 
     if (events.length > 0) {
-      const [{ display_name: childName }] = (
-        await pool.query('SELECT display_name FROM children WHERE id = $1', [childId])
-      ).rows;
+      const { rows: [child] } = await pool.query('SELECT display_name FROM children WHERE id = $1', [childId]);
       const tokens = await parentPushTokens(childId);
-      for (const e of events) await notifier.geofenceEvent({ parentPushTokens: tokens, childName, ...e });
+      for (const e of events) await notifier.geofenceEvent({ parentPushTokens: tokens, childName: child.display_name, ...e });
     }
 
     res.json({ received: points.length, geofenceEvents: events.length });
@@ -159,30 +182,30 @@ export function deviceRouter({ fieldCrypto, notifier, classify }) {
   /**
    * GET /v1/device/policy
    * Screen-time schedules, daily limits and filter rules the device enforces
-   * locally (iOS Screen Time API / Android DevicePolicyManager + local VPN DNS filter).
+   * locally (Android VpnService DNS filter + usage monitor; iOS Screen Time API).
    */
   router.get('/policy', requireScope('screen_time'), async (req, res) => {
     const { childId } = req.device;
-    const [schedules, limits, filters] = await Promise.all([
+    const [schedules, limits, filters, family] = await Promise.all([
       pool.query(
-        `SELECT id, name, days_of_week AS "daysOfWeek", starts_at AS "startsAt", ends_at AS "endsAt", mode
-           FROM screen_time_schedules WHERE child_id = $1 AND enabled`,
+        `SELECT id, name, days_of_week AS "daysOfWeek", to_char(starts_at, 'HH24:MI') AS "startsAt",
+                to_char(ends_at, 'HH24:MI') AS "endsAt", mode
+           FROM screen_time_schedules WHERE child_id = $1 AND enabled ORDER BY starts_at`,
         [childId],
       ),
-      pool.query('SELECT target, value, minutes FROM daily_limits WHERE child_id = $1', [childId]),
+      pool.query('SELECT target, value, minutes FROM daily_limits WHERE child_id = $1 ORDER BY value', [childId]),
+      // A child-specific rule overrides a family-wide rule for the same target/value.
       pool.query(
-        `SELECT f.target, f.value, f.action FROM filter_rules f
-           JOIN children ch ON ch.family_id = f.family_id
-          WHERE ch.id = $1 AND (f.child_id IS NULL OR f.child_id = $1)`,
+        `SELECT DISTINCT ON (f.target, f.value) f.target, f.value, f.action
+           FROM filter_rules f JOIN children ch ON ch.family_id = f.family_id
+          WHERE ch.id = $1 AND (f.child_id IS NULL OR f.child_id = $1)
+          ORDER BY f.target, f.value, (f.child_id IS NULL)`,
         [childId],
       ),
+      pool.query('SELECT f.timezone FROM families f JOIN children ch ON ch.family_id = f.id WHERE ch.id = $1', [childId]),
     ]);
-    const { rows: [family] } = await pool.query(
-      'SELECT f.timezone FROM families f JOIN children ch ON ch.family_id = f.id WHERE ch.id = $1',
-      [childId],
-    );
     res.json({
-      timezone: family.timezone,
+      timezone: family.rows[0].timezone,
       schedules: schedules.rows,
       dailyLimits: limits.rows,
       filterRules: filters.rows,
