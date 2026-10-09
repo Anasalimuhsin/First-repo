@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>عقد الزواج – CCML</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Noto+Naskh+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
+<script>/*__JSZIP__*/</script>
+<style>
+  :root {
+    --bg: #f5f3ee;
+    --surface: #ffffff;
+    --ink: #1f2420;
+    --muted: #616a63;
+    --line: #d9d6cc;
+    --accent: #1d5c46;
+    --accent-ink: #ffffff;
+    --accent-soft: #e4efe9;
+    --warn: #a3401f;
+    --warn-soft: #fbece6;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #151816; --surface: #1e2320; --ink: #e8ebe8; --muted: #9aa49d;
+      --line: #343b36; --accent: #5fb592; --accent-ink: #0d1a14; --accent-soft: #20352c;
+      --warn: #f08a68; --warn-soft: #3a231b;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #151816; --surface: #1e2320; --ink: #e8ebe8; --muted: #9aa49d;
+    --line: #343b36; --accent: #5fb592; --accent-ink: #0d1a14; --accent-soft: #20352c;
+    --warn: #f08a68; --warn-soft: #3a231b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+    font-size: 15px; line-height: 1.5;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 24px 16px 120px; }
+  header.app { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+  header.app img { height: 56px; width: auto; border-radius: 6px; background: #fff; padding: 4px; }
+  header.app h1 { font-size: 22px; margin: 0; font-weight: 600; }
+  header.app p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  .fr { color: var(--muted); font-size: 12px; font-weight: 400; direction: ltr; unicode-bidi: isolate; }
+
+  section.card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 18px 18px 6px; margin-bottom: 16px;
+  }
+  section.card h2 { font-size: 16px; margin: 0 0 14px; font-weight: 600; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  section.card h3 { font-size: 14px; margin: 6px 0 10px; font-weight: 600; color: var(--accent); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 4px 14px; }
+  .field { display: flex; flex-direction: column; margin-bottom: 12px; min-width: 0; }
+  .field label { font-size: 13px; font-weight: 500; margin-bottom: 4px; display: flex; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
+  .field label .req { color: var(--warn); }
+  .field input {
+    font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+    border-radius: 7px; padding: 8px 10px; min-width: 0; width: 100%;
+  }
+  .field input:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent; }
+  .field input.missing { border-color: var(--warn); background: var(--warn-soft); }
+  .field small { color: var(--muted); font-size: 12px; margin-top: 3px; }
+  .person + .person { border-top: 1px dashed var(--line); padding-top: 12px; margin-top: 4px; }
+
+  .bar {
+    position: fixed; inset: auto 0 0 0; background: var(--surface); border-top: 1px solid var(--line);
+    padding: 12px 16px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; z-index: 10;
+  }
+  button {
+    font: inherit; font-weight: 500; border-radius: 8px; padding: 9px 16px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: wait; }
+  .status { width: 100%; text-align: center; font-size: 13px; color: var(--muted); min-height: 1em; }
+  .status.err { color: var(--warn); }
+
+  /* ---------- Printable contract (hidden on screen) ---------- */
+  #print { display: none; }
+  @media print {
+    @page { size: A4; margin: 10mm 11mm 8mm; }
+    body { background: #fff; color: #000; }
+    .wrap, .bar { display: none !important; }
+    #print { display: block; font-family: "Noto Naskh Arabic", "Traditional Arabic", serif; font-size: 10pt; line-height: 1.45; color: #000; }
+  }
+  #print .top { display: flex; justify-content: space-between; align-items: center; }
+  #print .top img { height: 18mm; }
+  #print .title { text-align: center; }
+  #print .title .basmala { font-size: 13pt; }
+  #print .title .name { font-size: 18pt; font-weight: 700; }
+  #print table { width: 100%; border-collapse: collapse; margin: 2mm 0; table-layout: fixed; }
+  #print th, #print td { border: 1px solid #000; padding: 1mm 1.5mm; text-align: center; vertical-align: middle; word-wrap: break-word; }
+  #print th { background: #eee; font-weight: 600; }
+  #print th.band { background: #d9d9d9; font-size: 12pt; }
+  #print td.val { height: 7.5mm; }
+  #print .meta td { text-align: right; border: 1px solid #000; }
+  #print .meta b { font-weight: 600; }
+  #print .stmt { font-weight: 700; text-align: justify; margin: 2mm 0; line-height: 1.6; }
+  #print .sigs { display: flex; justify-content: space-between; gap: 10mm; margin: 4mm 0; }
+  #print .sigs div { flex: 1; border: 1px solid #000; padding: 2mm 3mm; min-height: 15mm; }
+  #print .madhun { margin-top: 2mm; line-height: 2; }
+  #print .madhun h4 { margin: 0; font-size: 13pt; }
+  #print .foot { border-top: 1px solid #000; margin-top: 3mm; padding-top: 2mm; text-align: center; font-family: Arial, sans-serif; font-size: 9pt; direction: ltr; }
+  #print .ltr { direction: ltr; unicode-bidi: isolate; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="app">
+    <img id="logo" alt="CCML">
+    <div>
+      <h1>وثيقة عقد زواج شرعي <span class="fr">Contrat de mariage religieux</span></h1>
+      <p>املأ الحقول ثم حمّل ملف Word المعبأ أو اطبع العقد. يتم حفظ المسودة تلقائياً على هذا الجهاز.
+        <span class="fr">Remplissez, puis téléchargez le Word rempli ou imprimez.</span></p>
+    </div>
+  </header>
+
+  <form id="f" autocomplete="off" onsubmit="return false">
+    <section class="card">
+      <h2>بيانات العقد <span class="fr">Informations du contrat</span></h2>
+      <div class="grid">
+        <div class="field"><label>رقم العقد <span class="fr">N° du contrat</span></label><input name="contractNo"></div>
+        <div class="field"><label>صفحة رقم <span class="fr">Page n°</span></label><input name="pageNo"></div>
+        <div class="field"><label>رقم السجل <span class="fr">N° du registre</span></label><input name="registryNo"></div>
+        <div class="field"><label>المحكمة المختصة <span class="fr">Instance compétente</span></label><input name="court"></div>
+        <div class="field"><label><span>التاريخ (ميلادي) <span class="req">*</span></span> <span class="fr">Date</span></label><input type="date" name="dateG" data-req></div>
+        <div class="field"><label>التاريخ (هجري) <span class="fr">Date hégirienne</span></label><input name="dateH"><small>يُحسب تلقائياً، ويمكن تعديله</small></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>بيانات الزوجين <span class="fr">Les époux</span></h2>
+      <div class="person" data-p="groom"><h3>الزوج <span class="fr">L'époux</span></h3></div>
+      <div class="person" data-p="bride"><h3>الزوجة <span class="fr">L'épouse</span></h3></div>
+    </section>
+
+    <section class="card">
+      <h2>تفاصيل الصداق (المهر) <span class="fr">La dot (mahr)</span></h2>
+      <div class="grid">
+        <div class="field"><label><span>المهر المسمى <span class="req">*</span></span> <span class="fr">Dot totale</span></label><input name="mahrTotal" data-req><small>إجمالي قيمة المهر المسمى بين الطرفين</small></div>
+        <div class="field"><label>المعجل (المقدم) <span class="fr">Partie versée</span></label><input name="mahrAdvance"><small>المبلغ أو الذهب المقبوض نقداً عند العقد</small></div>
+        <div class="field"><label>المؤجل (المؤخر) <span class="fr">Partie différée</span></label><input name="mahrDeferred"><small>المؤخر الثابت في الذمة لأقرب الأجلين</small></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>بيانات الولي والشهود <span class="fr">Tuteur et témoins</span></h2>
+      <div class="person" data-w="wali"><h3>ولي الزوجة <span class="fr">Tuteur (wali)</span></h3></div>
+      <div class="person" data-w="w1"><h3>الشاهد الأول <span class="fr">Témoin 1</span></h3></div>
+      <div class="person" data-w="w2"><h3>الشاهد الثاني <span class="fr">Témoin 2</span></h3></div>
+    </section>
+
+    <section class="card">
+      <h2>اعتماد المأذون الشرعي <span class="fr">Officiant</span></h2>
+      <div class="grid">
+        <div class="field"><label>الاسم <span class="fr">Nom</span></label><input name="madhunName"></div>
+      </div>
+    </section>
+  </form>
+</div>
+
+<div class="bar">
+  <button class="primary" id="btnDocx" disabled>تحميل ملف Word المعبأ</button>
+  <button id="btnPrint">طباعة / PDF</button>
+  <button id="btnClear" type="button">مسح النموذج</button>
+  <div class="status" id="status">جارٍ تحميل القالب…</div>
+</div>
+
+<div id="print" aria-hidden="true"></div>
+
+<script>
+/* The original Word form (CCML), embedded so the page works as a single file. */
+const TEMPLATE_DOCX_B64 = "__DOCX_B64__";
+
+const PERSON_FIELDS = [
+  ["name", "الاسم", "Nom complet", true],
+  ["nationality", "الجنسية", "Nationalité"],
+  ["dob", "تاريخ الميلاد", "Date de naissance", false, "date"],
+  ["job", "المهنة", "Profession"],
+  ["pob", "مكان الميلاد", "Lieu de naissance"],
+  ["residence", "محل الإقامة", "Adresse"],
+  ["id", "رقم الهوية / الباسبور", "N° pièce d'identité / passeport", true],
+];
+const WITNESS_FIELDS = [
+  ["name", "الاسم بالكامل", "Nom complet", true],
+  ["id", "رقم البطاقة", "N° de pièce d'identité"],
+  ["residence", "محل الإقامة", "Adresse"],
+];
+
+function buildFields(container, prefix, defs) {
+  const grid = document.createElement("div");
+  grid.className = "grid";
+  for (const [key, ar, fr, req, type] of defs) {
+    const div = document.createElement("div");
+    div.className = "field";
+    div.innerHTML = `<label><span>${ar}${req ? ' <span class="req">*</span>' : ""}</span> <span class="fr">${fr}</span></label>`;
+    const input = document.createElement("input");
+    input.name = `${prefix}_${key}`;
+    if (type) input.type = type;
+    if (req) input.dataset.req = "";
+    div.appendChild(input);
+    grid.appendChild(div);
+  }
+  container.appendChild(grid);
+}
+document.querySelectorAll("[data-p]").forEach(el => buildFields(el, el.dataset.p, PERSON_FIELDS));
+document.querySelectorAll("[data-w]").forEach(el => buildFields(el, el.dataset.w, WITNESS_FIELDS));
+
+const form = document.getElementById("f");
+const statusEl = document.getElementById("status");
+const setStatus = (msg, err) => { statusEl.textContent = msg; statusEl.classList.toggle("err", !!err); };
+
+function data() {
+  const d = {};
+  for (const el of form.elements) if (el.name) d[el.name] = el.value.trim();
+  return d;
+}
+function fmtDate(iso) {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+}
+function hijri(iso) {
+  if (!iso) return "";
+  try {
+    const dt = new Date(iso + "T12:00:00");
+    return new Intl.DateTimeFormat("ar-SA-u-ca-islamic-umalqura-nu-latn",
+      { day: "numeric", month: "long", year: "numeric" }).format(dt);
+  } catch { return ""; }
+}
+
+/* ---- Draft autosave (this browser only) ---- */
+const DRAFT_KEY = "ccml-marriage-form-draft";
+function saveDraft() { try { localStorage.setItem(DRAFT_KEY, JSON.stringify(data())); } catch {} }
+function loadDraft() {
+  try {
+    const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || "{}");
+    for (const [k, v] of Object.entries(d)) if (form.elements[k]) form.elements[k].value = v;
+  } catch {}
+}
+loadDraft();
+if (!form.elements.dateG.value) {
+  const t = new Date();
+  form.elements.dateG.value = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+}
+if (!form.elements.dateH.value) form.elements.dateH.value = hijri(form.elements.dateG.value);
+
+form.addEventListener("input", e => {
+  if (e.target.name === "dateG") form.elements.dateH.value = hijri(e.target.value);
+  e.target.classList.remove("missing");
+  saveDraft();
+});
+
+function checkRequired() {
+  const missing = [];
+  form.querySelectorAll("[data-req]").forEach(el => {
+    const empty = !el.value.trim();
+    el.classList.toggle("missing", empty);
+    if (empty) missing.push(el);
+  });
+  if (missing.length) {
+    missing[0].focus();
+    return confirm("بعض الحقول المطلوبة فارغة (مظللة). هل تريد المتابعة على أي حال؟\nCertains champs obligatoires sont vides. Continuer ?");
+  }
+  return true;
+}
+
+document.getElementById("btnClear").addEventListener("click", () => {
+  if (!confirm("مسح جميع الحقول؟ / Effacer tous les champs ?")) return;
+  form.reset();
+  try { localStorage.removeItem(DRAFT_KEY); } catch {}
+  form.querySelectorAll(".missing").forEach(el => el.classList.remove("missing"));
+  form.elements.dateG.dispatchEvent(new Event("input", { bubbles: true }));
+});
+
+/* ================= Word (.docx) filling ================= */
+const W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+const isArabic = s => /[؀-ۿ]/.test(s);
+let zipPromise = null;
+
+function loadTemplate() {
+  if (!zipPromise) zipPromise = JSZip.loadAsync(TEMPLATE_DOCX_B64, { base64: true });
+  return zipPromise;
+}
+const kids = (el, local) => Array.from(el.childNodes).filter(n => n.nodeType === 1 && n.namespaceURI === W && n.localName === local);
+const kid = (el, local) => kids(el, local)[0];
+
+function makeRun(doc, text, baseRPr) {
+  const r = doc.createElementNS(W, "w:r");
+  const rPr = baseRPr ? baseRPr.cloneNode(true) : doc.createElementNS(W, "w:rPr");
+  kids(rPr, "rtl").forEach(n => rPr.removeChild(n));
+  if (isArabic(text)) rPr.appendChild(doc.createElementNS(W, "w:rtl"));
+  r.appendChild(rPr);
+  const t = doc.createElementNS(W, "w:t");
+  t.setAttribute("xml:space", "preserve");
+  t.textContent = text;
+  r.appendChild(t);
+  return r;
+}
+
+/* Put a value into an empty table cell (centered). */
+function fillCell(doc, tc, text) {
+  if (!text) return;
+  const p = kids(tc, "p").pop();
+  let pPr = kid(p, "pPr");
+  if (!pPr) { pPr = doc.createElementNS(W, "w:pPr"); p.insertBefore(pPr, p.firstChild); }
+  let jc = kid(pPr, "jc");
+  if (!jc) {
+    jc = doc.createElementNS(W, "w:jc");
+    const rPr = kid(pPr, "rPr");
+    pPr.insertBefore(jc, rPr || null);
+  }
+  jc.setAttributeNS(W, "w:val", "center");
+  p.appendChild(makeRun(doc, text, kid(pPr, "rPr")));
+}
+
+/* Append a value after an existing label inside a cell ("رقم العقد: 123"). */
+function appendToLabel(doc, tc, text, sep) {
+  if (!text) return;
+  const p = kids(tc, "p").pop();
+  const runs = kids(p, "r");
+  const last = runs[runs.length - 1];
+  const base = last ? kid(last, "rPr") : kid(kid(p, "pPr") || p, "rPr");
+  p.appendChild(makeRun(doc, (sep || " ") + text, base));
+}
+
+async function buildDocx() {
+  const zip = await loadTemplate();
+  const xml = await zip.file("word/document.xml").async("string");
+  const doc = new DOMParser().parseFromString(xml, "application/xml");
+  if (doc.getElementsByTagName("parsererror").length) throw new Error("template parse error");
+  const d = data();
+
+  const body = doc.getElementsByTagNameNS(W, "body")[0];
+  const tables = kids(body, "tbl");
+  if (tables.length < 4) throw new Error("unexpected template layout");
+  const cell = (t, r, c) => kids(kids(tables[t], "tr")[r], "tc")[c];
+
+  // Table 0: contract header
+  appendToLabel(doc, cell(0, 1, 0), d.contractNo);
+  appendToLabel(doc, cell(0, 1, 1), d.pageNo);
+  appendToLabel(doc, cell(0, 1, 2), d.registryNo);
+  appendToLabel(doc, cell(0, 2, 0), d.court, ": ");
+  appendToLabel(doc, cell(0, 2, 1), fmtDate(d.dateG), ": ");
+  appendToLabel(doc, cell(0, 2, 2), d.dateH, ": ");
+
+  // Table 1: spouses. Cell order in the file: id, residence, pob, job, dob, nationality, name
+  const order = ["id", "residence", "pob", "job", "dob", "nationality", "name"];
+  [["groom", 2], ["bride", 5]].forEach(([who, row]) => {
+    order.forEach((k, i) => {
+      const v = k === "dob" ? fmtDate(d[`${who}_dob`]) : d[`${who}_${k}`];
+      fillCell(doc, cell(1, row, i), v);
+    });
+  });
+
+  // Table 2: mahr (value column is the first cell)
+  fillCell(doc, cell(2, 1, 0), d.mahrTotal);
+  fillCell(doc, cell(2, 2, 0), d.mahrAdvance);
+  fillCell(doc, cell(2, 3, 0), d.mahrDeferred);
+
+  // Table 3: wali & witnesses. Cell order: signature, residence, id, name, role
+  [["wali", 2], ["w1", 3], ["w2", 4]].forEach(([who, row]) => {
+    fillCell(doc, cell(3, row, 1), d[`${who}_residence`]);
+    fillCell(doc, cell(3, row, 2), d[`${who}_id`]);
+    fillCell(doc, cell(3, row, 3), d[`${who}_name`]);
+  });
+
+  // Ma'dhun name: replace the dotted line in the paragraph after the "اعتماد المأذون" heading
+  if (d.madhunName) {
+    const paras = kids(body, "p");
+    const text = p => Array.from(p.getElementsByTagNameNS(W, "t")).map(t => t.textContent).join("");
+    const h = paras.findIndex(p => /ﺄذون|مأذون/.test(text(p)));
+    const p = h >= 0 ? paras[h + 1] : null;
+    const dots = p && Array.from(p.getElementsByTagNameNS(W, "t")).find(t => /^\.{5,}$/.test(t.textContent.trim()));
+    if (dots) {
+      const run = dots.parentNode;
+      run.parentNode.replaceChild(makeRun(doc, d.madhunName, kid(run, "rPr")), run);
+    }
+  }
+
+  zip.file("word/document.xml", new XMLSerializer().serializeToString(doc));
+  return zip.generateAsync({
+    type: "blob",
+    mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  });
+}
+
+function fileName() {
+  // Latin-only so every browser keeps the name (some fall back to "download" for Arabic names)
+  const d = data();
+  const safe = s => (s || "").normalize("NFD").replace(/[^A-Za-z0-9-]+/g, "_").replace(/^_+|_+$/g, "");
+  const parts = ["CCML_contrat_mariage", safe(d.contractNo), d.dateG].filter(Boolean);
+  return parts.join("_") + ".docx";
+}
+
+document.getElementById("btnDocx").addEventListener("click", async e => {
+  if (!checkRequired()) return;
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  setStatus("جارٍ إنشاء الملف…");
+  try {
+    const blob = await buildDocx();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = fileName();
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    setStatus("تم تحميل الملف ✓ / Fichier téléchargé");
+  } catch (err) {
+    console.error(err);
+    setStatus("تعذّر إنشاء الملف: " + err.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+/* ================= Printable copy ================= */
+const esc = s => String(s || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const v = s => `<bdi>${esc(s)}</bdi>`;
+let logoUrl = "";
+
+function renderPrint() {
+  const d = data();
+  const personRow = who => `<tr>
+      <td class="val">${v(d[`${who}_name`])}</td><td class="val">${v(d[`${who}_nationality`])}</td>
+      <td class="val">${v(fmtDate(d[`${who}_dob`]))}</td><td class="val">${v(d[`${who}_job`])}</td>
+      <td class="val">${v(d[`${who}_pob`])}</td><td class="val">${v(d[`${who}_residence`])}</td>
+      <td class="val">${v(d[`${who}_id`])}</td></tr>`;
+  const personHead = `<tr><th>الاسم</th><th>الجنسية</th><th>تاريخ الميلاد</th><th>المهنة</th><th>مكان الميلاد</th><th>محل الإقامة</th><th>رقم الهوية / الباسبور</th></tr>`;
+  const wRow = (role, who) => `<tr><th>${role}</th><td class="val">${v(d[`${who}_name`])}</td>
+      <td class="val">${v(d[`${who}_id`])}</td><td class="val">${v(d[`${who}_residence`])}</td><td></td></tr>`;
+
+  document.getElementById("print").innerHTML = `
+    <div class="top">
+      <div class="title" style="flex:1"><div class="basmala">بسم الله الرحمن الرحيم</div><div class="name">وثيقة عقد زواج شرعي</div></div>
+      ${logoUrl ? `<img src="${logoUrl}" alt="">` : ""}
+    </div>
+    <table class="meta">
+      <tr><td><b>رقم العقد:</b> ${v(d.contractNo)}</td><td><b>صفحة رقم:</b> ${v(d.pageNo)}</td><td><b>رقم السجل:</b> ${v(d.registryNo)}</td></tr>
+      <tr><td><b>المحكمة المختصة:</b> ${v(d.court)}</td><td><b>التاريخ:</b> ${v(d.dateH)}</td><td><b>الموافق:</b> ${v(fmtDate(d.dateG))}</td></tr>
+    </table>
+    <table>
+      <tr><th class="band" colspan="7">بيانات الزوج</th></tr>${personHead}${personRow("groom")}
+      <tr><th class="band" colspan="7">بيانات الزوجة</th></tr>${personHead}${personRow("bride")}
+    </table>
+    <table>
+      <colgroup><col style="width:22%"><col style="width:38%"><col></colgroup>
+      <tr><th class="band" colspan="3">تفاصيل الصداق (المهر)</th></tr>
+      <tr><th>المهر المسمى:</th><td>إجمالي قيمة المهر المسمى بين الطرفين</td><td class="val">${v(d.mahrTotal)}</td></tr>
+      <tr><th>المعجل (المقدم):</th><td>المبلغ أو الذهب المقبوض نقداً عند العقد</td><td class="val">${v(d.mahrAdvance)}</td></tr>
+      <tr><th>المؤجل (المؤخر):</th><td>المؤخر الثابت في الذمة لأقرب الأجلين</td><td class="val">${v(d.mahrDeferred)}</td></tr>
+    </table>
+    <p class="stmt">زواجاً شرعياً على كتاب الله وسنة رسوله محمد صلى الله عليه وسلم بإيجاب وقبول شرعيين صادرين من الطرفين أو وكيليهما (الولي) بعد تعريفهما المعرفة الشرعية والتحقق من خلوهما من كافة الموانع الشرعية والقانونية، وبحضور الشهود المذكورين أدناه.</p>
+    <table>
+      <colgroup><col style="width:14%"><col style="width:26%"><col style="width:18%"><col style="width:24%"><col></colgroup>
+      <tr><th class="band" colspan="5">بيانات الولي والشهود</th></tr>
+      <tr><th>الصفة</th><th>الاسم بالكامل</th><th>رقم البطاقة</th><th>محل الإقامة</th><th>التوقيع</th></tr>
+      ${wRow("ولي الزوجة", "wali")}${wRow("الشاهد الأول", "w1")}${wRow("الشاهد الثاني", "w2")}
+    </table>
+    <div class="sigs">
+      <div>توقيع الزوج (أو وكيله):<br>التوقيع: ..............................</div>
+      <div>توقيع الزوجة (أو وليها):<br>التوقيع: ..............................</div>
+    </div>
+    <div class="madhun">
+      <h4>اعتماد المأذون الشرعي:</h4>
+      الاسم: ${d.madhunName ? v(d.madhunName) : ".............................................................."}<br>
+      التوقيع والختم: ..............................................................
+    </div>
+    <div class="foot">
+      <b>CENTRE CULTUREL MUSULMAN DE LONGUEUIL</b><br>
+      1398 Chemin de Chambly, Longueuil, Québec, Canada, J4J 3X3<br>
+      Téléphone: (450) 321-1225 | Courriel: infoccmlongueuil@gmail.com | Site Web: www.ccmlongueuil.ca
+    </div>`;
+}
+
+document.getElementById("btnPrint").addEventListener("click", () => {
+  if (!checkRequired()) return;
+  renderPrint();
+  window.print();
+});
+window.addEventListener("beforeprint", renderPrint);
+
+/* ---- Startup: load template + logo ---- */
+(async () => {
+  if (typeof JSZip === "undefined") {
+    setStatus("تعذّر تحميل مكتبة JSZip. (الطباعة متاحة)", true);
+    return;
+  }
+  try {
+    const zip = await loadTemplate();
+    const img = zip.file(/^word\/media\/image1\./)[0];
+    if (img) {
+      logoUrl = URL.createObjectURL(await img.async("blob"));
+      document.getElementById("logo").src = logoUrl;
+    }
+    document.getElementById("btnDocx").disabled = false;
+    setStatus("");
+  } catch (err) {
+    console.error(err);
+    setStatus("تعذّر قراءة القالب: " + err.message, true);
+  }
+})();
+</script>
+</body>
+</html>
