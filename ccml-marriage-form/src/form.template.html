@@ -79,6 +79,22 @@
   .status { width: 100%; text-align: center; font-size: 13px; color: var(--muted); min-height: 1em; }
   .status.err { color: var(--warn); }
 
+  /* ID photo slots */
+  .slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; margin-bottom: 14px; }
+  .slot { border: 1px dashed var(--line); border-radius: 8px; padding: 10px 12px; background: var(--bg); }
+  .slot.dragover { border-color: var(--accent); background: var(--accent-soft); }
+  .slot.missing { border-color: var(--warn); background: var(--warn-soft); }
+  .slot-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .slot-head h3 { margin: 0; }
+  .add { font-size: 13px; font-weight: 500; color: var(--accent); border: 1px solid var(--accent); border-radius: 7px; padding: 4px 10px; cursor: pointer; white-space: nowrap; }
+  .add input { display: none; }
+  .thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; min-height: 40px; align-items: center; }
+  .thumbs .empty { margin: 0; color: var(--muted); font-size: 12px; }
+  .thumb { position: relative; }
+  .thumb img { display: block; height: 76px; max-width: 120px; object-fit: cover; border-radius: 5px; border: 1px solid var(--line); }
+  .thumb button { position: absolute; top: -7px; left: -7px; width: 22px; height: 22px; padding: 0; border-radius: 50%; font-size: 13px; line-height: 1; background: var(--surface); }
+  .note { color: var(--muted); font-size: 12px; margin: 0 0 12px; }
+
   /* ---------- Printable contract (hidden on screen) ---------- */
   #print { display: none; }
   @media print {
@@ -106,6 +122,14 @@
   #print .madhun h4 { margin: 0; font-size: 13pt; }
   #print .foot { border-top: 1px solid #000; margin-top: 3mm; padding-top: 2mm; text-align: center; font-family: Arial, sans-serif; font-size: 9pt; direction: ltr; }
   #print .ltr { direction: ltr; unicode-bidi: isolate; }
+  #print .copy-tag { display: inline-block; border: 1px solid #000; padding: 0.5mm 3mm; font-size: 9pt; font-weight: 600; }
+  #print .ids { break-before: page; page-break-before: always; }
+  #print .ids h2 { text-align: center; font-size: 15pt; margin: 2mm 0 1mm; }
+  #print .ids .sub { text-align: center; margin: 0 0 4mm; }
+  #print .ids .who { break-inside: avoid; margin-bottom: 3mm; }
+  #print .ids h3 { font-size: 11pt; margin: 0 0 2mm; border-bottom: 1px solid #000; padding-bottom: 1mm; }
+  #print .ids .pics { display: flex; flex-wrap: wrap; gap: 4mm; justify-content: center; }
+  #print .ids img { max-width: 82mm; max-height: 46mm; border: 1px solid #999; }
 </style>
 </head>
 <body>
@@ -114,8 +138,8 @@
     <img id="logo" alt="CCML">
     <div>
       <h1>وثيقة عقد زواج شرعي <span class="fr">Contrat de mariage religieux</span></h1>
-      <p>املأ الحقول ثم حمّل ملف Word المعبأ أو اطبع العقد. يتم حفظ المسودة تلقائياً على هذا الجهاز.
-        <span class="fr">Remplissez, puis téléchargez le Word rempli ou imprimez.</span></p>
+      <p>املأ الحقول ثم حمّل أو اطبع نسختين: نسخة المسجد (مع صور الهوية) ونسخة الزوجين. يتم حفظ المسودة تلقائياً على هذا الجهاز.
+        <span class="fr">Deux copies : mosquée (avec pièces d'identité) et époux.</span></p>
     </div>
   </header>
 
@@ -155,6 +179,13 @@
     </section>
 
     <section class="card">
+      <h2>صور بطاقات الهوية <span class="fr">Photos des pièces d'identité</span></h2>
+      <p class="note">أضف صورة الوجه والظهر لكل بطاقة (من الكاميرا أو من ملف، أو اسحبها إلى المربع). تُرفق الصور بنسخة المسجد فقط، ولا تُحفظ في المسودة ولا تُرسل إلى أي مكان.
+        <span class="fr">Recto et verso. Jointes uniquement à la copie de la mosquée; jamais envoyées ni sauvegardées.</span></p>
+      <div class="slots" id="slots"></div>
+    </section>
+
+    <section class="card">
       <h2>اعتماد المأذون الشرعي <span class="fr">Officiant</span></h2>
       <div class="grid">
         <div class="field"><label>الاسم <span class="fr">Nom</span></label><input name="madhunName"></div>
@@ -164,8 +195,9 @@
 </div>
 
 <div class="bar">
-  <button class="primary" id="btnDocx" disabled>تحميل ملف Word المعبأ</button>
-  <button id="btnPrint">طباعة / PDF</button>
+  <button class="primary" id="btnDocx" disabled>تحميل النسختين (Word)</button>
+  <button id="btnPrintMosque">طباعة نسخة المسجد</button>
+  <button id="btnPrintCouple">طباعة نسخة الزوجين</button>
   <button id="btnClear" type="button">مسح النموذج</button>
   <div class="status" id="status">جارٍ تحميل القالب…</div>
 </div>
@@ -255,23 +287,121 @@ form.addEventListener("input", e => {
   saveDraft();
 });
 
-function checkRequired() {
+function checkRequired(withPhotos) {
   const missing = [];
   form.querySelectorAll("[data-req]").forEach(el => {
     const empty = !el.value.trim();
     el.classList.toggle("missing", empty);
     if (empty) missing.push(el);
   });
-  if (missing.length) {
-    missing[0].focus();
-    return confirm("بعض الحقول المطلوبة فارغة (مظللة). هل تريد المتابعة على أي حال؟\nCertains champs obligatoires sont vides. Continuer ?");
+  const noPhotos = withPhotos ? ID_SLOTS.filter(([k]) => !photos[k].length) : [];
+  ID_SLOTS.forEach(([k]) => slotEl(k).classList.toggle("missing", noPhotos.some(([m]) => m === k)));
+  const msgs = [];
+  if (missing.length) msgs.push("بعض الحقول المطلوبة فارغة (مظللة).\nCertains champs obligatoires sont vides.");
+  if (noPhotos.length) msgs.push("لا توجد صورة هوية لـ: " + noPhotos.map(s => s[1]).join("، ") + "\nPièce d'identité manquante : " + noPhotos.map(s => s[2]).join(", "));
+  if (msgs.length) {
+    (missing[0] || slotEl(noPhotos[0][0])).scrollIntoView({ block: "center" });
+    if (missing[0]) missing[0].focus();
+    return confirm(msgs.join("\n\n") + "\n\nهل تريد المتابعة على أي حال؟ / Continuer quand même ?");
   }
   return true;
 }
 
+/* ================= ID photos ================= */
+const ID_SLOTS = [
+  ["groom", "الزوج", "L'époux"],
+  ["bride", "الزوجة", "L'épouse"],
+  ["w1", "الشاهد الأول", "Témoin 1"],
+  ["w2", "الشاهد الثاني", "Témoin 2"],
+];
+const photos = Object.fromEntries(ID_SLOTS.map(([k]) => [k, []]));
+const slotEl = k => document.querySelector(`[data-photos="${k}"]`);
+
+/* Re-encode as JPEG (max 1600px) so the Word file stays small and orientation is baked in. */
+async function toJpeg(file) {
+  let src;
+  try {
+    src = await createImageBitmap(file);
+  } catch {
+    src = await new Promise((res, rej) => {
+      const i = new Image();
+      i.onload = () => res(i);
+      i.onerror = () => rej(new Error("unsupported image"));
+      i.src = URL.createObjectURL(file);
+    });
+  }
+  const scale = Math.min(1, 1600 / Math.max(src.width, src.height));
+  const c = document.createElement("canvas");
+  c.width = Math.round(src.width * scale);
+  c.height = Math.round(src.height * scale);
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, c.width, c.height);
+  ctx.drawImage(src, 0, 0, c.width, c.height);
+  const blob = await new Promise(res => c.toBlob(res, "image/jpeg", 0.85));
+  return { blob, url: URL.createObjectURL(blob), w: c.width, h: c.height };
+}
+
+function renderSlot(k) {
+  const box = slotEl(k).querySelector(".thumbs");
+  box.innerHTML = photos[k].length ? "" : '<p class="empty">لا توجد صور بعد (الوجه والظهر)</p>';
+  photos[k].forEach((p, i) => {
+    const fig = document.createElement("div");
+    fig.className = "thumb";
+    fig.innerHTML = `<img src="${p.url}" alt=""><button type="button" title="حذف / Supprimer">×</button>`;
+    fig.querySelector("button").onclick = () => {
+      URL.revokeObjectURL(p.url);
+      photos[k].splice(i, 1);
+      renderSlot(k);
+    };
+    box.appendChild(fig);
+  });
+}
+
+async function addPhotos(k, files) {
+  const imgs = Array.from(files).filter(f => f.type.startsWith("image/") || /\.(jpe?g|png|heic|webp)$/i.test(f.name));
+  for (const f of imgs) {
+    try {
+      photos[k].push(await toJpeg(f));
+    } catch {
+      setStatus("تعذّرت قراءة الصورة: " + f.name + " (جرّب JPG أو PNG)", true);
+    }
+  }
+  slotEl(k).classList.remove("missing");
+  renderSlot(k);
+}
+
+function clearPhotos() {
+  ID_SLOTS.forEach(([k]) => {
+    photos[k].forEach(p => URL.revokeObjectURL(p.url));
+    photos[k] = [];
+    renderSlot(k);
+  });
+}
+
+(function buildSlots() {
+  const wrap = document.getElementById("slots");
+  for (const [k, ar, fr] of ID_SLOTS) {
+    const div = document.createElement("div");
+    div.className = "slot";
+    div.dataset.photos = k;
+    div.innerHTML = `<div class="slot-head"><h3>${ar} <span class="fr">${fr}</span></h3>
+      <label class="add">+ إضافة صورة<input type="file" accept="image/*" multiple></label></div>
+      <div class="thumbs"></div>`;
+    const input = div.querySelector("input");
+    input.addEventListener("change", () => { addPhotos(k, input.files); input.value = ""; });
+    div.addEventListener("dragover", e => { e.preventDefault(); div.classList.add("dragover"); });
+    div.addEventListener("dragleave", () => div.classList.remove("dragover"));
+    div.addEventListener("drop", e => { e.preventDefault(); div.classList.remove("dragover"); addPhotos(k, e.dataTransfer.files); });
+    wrap.appendChild(div);
+    renderSlot(k);
+  }
+})();
+
 document.getElementById("btnClear").addEventListener("click", () => {
   if (!confirm("مسح جميع الحقول؟ / Effacer tous les champs ?")) return;
   form.reset();
+  clearPhotos();
   try { localStorage.removeItem(DRAFT_KEY); } catch {}
   form.querySelectorAll(".missing").forEach(el => el.classList.remove("missing"));
   form.elements.dateG.dispatchEvent(new Event("input", { bubbles: true }));
@@ -280,11 +410,14 @@ document.getElementById("btnClear").addEventListener("click", () => {
 /* ================= Word (.docx) filling ================= */
 const W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 const isArabic = s => /[؀-ۿ]/.test(s);
-let zipPromise = null;
+const COPIES = {
+  mosque: { ar: "نسخة المسجد", fr: "Copie de la mosquée", file: "copie_mosquee" },
+  couple: { ar: "نسخة الزوجين", fr: "Copie des époux", file: "copie_epoux" },
+};
 
+// A fresh copy every time, so each generated file starts from the blank template.
 function loadTemplate() {
-  if (!zipPromise) zipPromise = JSZip.loadAsync(TEMPLATE_DOCX_B64, { base64: true });
-  return zipPromise;
+  return JSZip.loadAsync(TEMPLATE_DOCX_B64, { base64: true });
 }
 const kids = (el, local) => Array.from(el.childNodes).filter(n => n.nodeType === 1 && n.namespaceURI === W && n.localName === local);
 const kid = (el, local) => kids(el, local)[0];
@@ -328,7 +461,66 @@ function appendToLabel(doc, tc, text, sep) {
   p.appendChild(makeRun(doc, (sep || " ") + text, base));
 }
 
-async function buildDocx() {
+const xmlEsc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const NS_DECL = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ' +
+  'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" ' +
+  'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" ' +
+  'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" ' +
+  'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+
+function runXml(text, size, bold) {
+  if (!text) return "";
+  return `<w:r><w:rPr>${bold ? "<w:b/><w:bCs/>" : ""}<w:sz w:val="${size}"/><w:szCs w:val="${size}"/>${isArabic(text) ? "<w:rtl/>" : ""}</w:rPr>` +
+    `<w:t xml:space="preserve">${xmlEsc(text)}</w:t></w:r>`;
+}
+function paraXml(runs, { center = false, pageBreak = false, after = 80 } = {}) {
+  return `<w:p><w:pPr>${pageBreak ? "<w:pageBreakBefore/>" : ""}<w:bidi/><w:spacing w:before="0" w:after="${after}"/>` +
+    `<w:jc w:val="${center ? "center" : "left"}"/></w:pPr>${runs}</w:p>`;
+}
+function imageXml(rid, id, w, h) {
+  // fit inside 8.5cm x 5.5cm (EMU: 360000 per cm)
+  const s = Math.min(8.5 * 360000 / w, 5.5 * 360000 / h);
+  const cx = Math.round(w * s), cy = Math.round(h * s);
+  return `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="114300" distR="114300"><wp:extent cx="${cx}" cy="${cy}"/>` +
+    `<wp:docPr id="${id}" name="ID photo ${id}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>` +
+    `<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic>` +
+    `<pic:nvPicPr><pic:cNvPr id="${id}" name="idphoto_${id}.jpeg"/><pic:cNvPicPr/></pic:nvPicPr>` +
+    `<pic:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>` +
+    `<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom>` +
+    `<a:ln w="6350"><a:solidFill><a:srgbClr val="999999"/></a:solidFill></a:ln></pic:spPr></pic:pic></a:graphicData></a:graphic>` +
+    `</wp:inline></w:drawing></w:r>`;
+}
+
+/* Append a new page listing every party's ID photos (mosque copy only). */
+async function appendIdPages(zip, doc, body, d) {
+  const withPics = ID_SLOTS.filter(([k]) => photos[k].length);
+  if (!withPics.length) return;
+  let rels = await zip.file("word/_rels/document.xml.rels").async("string");
+  let n = 0, xml = "";
+  xml += paraXml(runXml("مرفقات العقد: صور بطاقات الهوية", 32, true), { center: true, pageBreak: true, after: 40 });
+  xml += paraXml(runXml(`رقم العقد: ${d.contractNo || "—"}   التاريخ: ${fmtDate(d.dateG)}`, 22), { center: true, after: 240 });
+  for (const [k, ar] of withPics) {
+    const name = d[`${k}_name`], id = d[`${k}_id`];
+    xml += paraXml(runXml(ar + ": ", 24, true) + runXml(name, 24) + (id ? runXml("   رقم البطاقة: ", 22) + runXml(id, 22) : ""), { after: 60 });
+    let pics = "";
+    for (const p of photos[k]) {
+      n++;
+      const rid = `rIdIdPhoto${n}`;
+      zip.file(`word/media/idphoto_${n}.jpeg`, p.blob, { createFolders: false });
+      rels = rels.replace("</Relationships>",
+        `<Relationship Id="${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/idphoto_${n}.jpeg"/></Relationships>`);
+      pics += imageXml(rid, 1000 + n, p.w, p.h);
+    }
+    xml += paraXml(pics, { center: true, after: 240 });
+  }
+  zip.file("word/_rels/document.xml.rels", rels);
+
+  const frag = new DOMParser().parseFromString(`<root ${NS_DECL}>${xml}</root>`, "application/xml");
+  const sectPr = kid(body, "sectPr");
+  for (const node of Array.from(frag.documentElement.childNodes)) body.insertBefore(doc.importNode(node, true), sectPr || null);
+}
+
+async function buildDocx(copy) {
   const zip = await loadTemplate();
   const xml = await zip.file("word/document.xml").async("string");
   const doc = new DOMParser().parseFromString(xml, "application/xml");
@@ -340,7 +532,8 @@ async function buildDocx() {
   if (tables.length < 4) throw new Error("unexpected template layout");
   const cell = (t, r, c) => kids(kids(tables[t], "tr")[r], "tc")[c];
 
-  // Table 0: contract header
+  // Table 0: copy label (empty top corner cell) + contract header
+  fillCell(doc, cell(0, 0, 0), COPIES[copy].ar);
   appendToLabel(doc, cell(0, 1, 0), d.contractNo);
   appendToLabel(doc, cell(0, 1, 1), d.pageNo);
   appendToLabel(doc, cell(0, 1, 2), d.registryNo);
@@ -382,36 +575,46 @@ async function buildDocx() {
     }
   }
 
+  if (copy === "mosque") await appendIdPages(zip, doc, body, d);
+
   zip.file("word/document.xml", new XMLSerializer().serializeToString(doc));
   return zip.generateAsync({
     type: "blob",
+    compression: "DEFLATE",
     mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   });
 }
 
-function fileName() {
+function fileName(copy) {
   // Latin-only so every browser keeps the name (some fall back to "download" for Arabic names)
   const d = data();
   const safe = s => (s || "").normalize("NFD").replace(/[^A-Za-z0-9-]+/g, "_").replace(/^_+|_+$/g, "");
-  const parts = ["CCML_contrat_mariage", safe(d.contractNo), d.dateG].filter(Boolean);
+  const parts = ["CCML_contrat_mariage", safe(d.contractNo), d.dateG, COPIES[copy].file].filter(Boolean);
   return parts.join("_") + ".docx";
 }
 
+function download(blob, name) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
 document.getElementById("btnDocx").addEventListener("click", async e => {
-  if (!checkRequired()) return;
+  if (!checkRequired(true)) return;
   const btn = e.currentTarget;
   btn.disabled = true;
-  setStatus("جارٍ إنشاء الملف…");
+  setStatus("جارٍ إنشاء الملفين…");
   try {
-    const blob = await buildDocx();
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = fileName();
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-    setStatus("تم تحميل الملف ✓ / Fichier téléchargé");
+    const mosque = await buildDocx("mosque");
+    const couple = await buildDocx("couple");
+    download(mosque, fileName("mosque"));
+    await new Promise(r => setTimeout(r, 800)); // browsers may drop a second download fired in the same instant
+    download(couple, fileName("couple"));
+    setStatus("تم تحميل النسختين ✓ (إذا طلب المتصفح السماح بتنزيل عدة ملفات، اختر «سماح») / Deux fichiers téléchargés");
   } catch (err) {
     console.error(err);
     setStatus("تعذّر إنشاء الملف: " + err.message, true);
@@ -425,8 +628,17 @@ const esc = s => String(s || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "
 const v = s => `<bdi>${esc(s)}</bdi>`;
 let logoUrl = "";
 
-function renderPrint() {
+function renderPrint(copy) {
   const d = data();
+  const tag = COPIES[copy];
+  const idPages = copy === "mosque" && ID_SLOTS.some(([k]) => photos[k].length) ? `
+    <section class="ids">
+      <h2>مرفقات العقد: صور بطاقات الهوية</h2>
+      <p class="sub">رقم العقد: ${v(d.contractNo || "—")} &nbsp; التاريخ: ${v(fmtDate(d.dateG))}</p>
+      ${ID_SLOTS.filter(([k]) => photos[k].length).map(([k, ar]) => `
+        <div class="who"><h3>${ar}: ${v(d[`${k}_name`])}${d[`${k}_id`] ? ` &nbsp; رقم البطاقة: ${v(d[`${k}_id`])}` : ""}</h3>
+          <div class="pics">${photos[k].map(p => `<img src="${p.url}" alt="">`).join("")}</div></div>`).join("")}
+    </section>` : "";
   const personRow = who => `<tr>
       <td class="val">${v(d[`${who}_name`])}</td><td class="val">${v(d[`${who}_nationality`])}</td>
       <td class="val">${v(fmtDate(d[`${who}_dob`]))}</td><td class="val">${v(d[`${who}_job`])}</td>
@@ -437,6 +649,7 @@ function renderPrint() {
       <td class="val">${v(d[`${who}_id`])}</td><td class="val">${v(d[`${who}_residence`])}</td><td></td></tr>`;
 
   document.getElementById("print").innerHTML = `
+    <div class="copy-tag">${tag.ar} · ${tag.fr}</div>
     <div class="top">
       <div class="title" style="flex:1"><div class="basmala">بسم الله الرحمن الرحيم</div><div class="name">وثيقة عقد زواج شرعي</div></div>
       ${logoUrl ? `<img src="${logoUrl}" alt="">` : ""}
@@ -476,15 +689,22 @@ function renderPrint() {
       <b>CENTRE CULTUREL MUSULMAN DE LONGUEUIL</b><br>
       1398 Chemin de Chambly, Longueuil, Québec, Canada, J4J 3X3<br>
       Téléphone: (450) 321-1225 | Courriel: infoccmlongueuil@gmail.com | Site Web: www.ccmlongueuil.ca
-    </div>`;
+    </div>${idPages}`;
 }
 
-document.getElementById("btnPrint").addEventListener("click", () => {
-  if (!checkRequired()) return;
-  renderPrint();
+let printingFromButton = false;
+async function printCopy(copy) {
+  if (!checkRequired(copy === "mosque")) return;
+  renderPrint(copy);
+  await Promise.all(Array.from(document.querySelectorAll("#print img")).map(i => i.decode().catch(() => {})));
+  printingFromButton = true;
   window.print();
-});
-window.addEventListener("beforeprint", renderPrint);
+}
+document.getElementById("btnPrintMosque").addEventListener("click", () => printCopy("mosque"));
+document.getElementById("btnPrintCouple").addEventListener("click", () => printCopy("couple"));
+// Ctrl+P without a button: print the full mosque copy
+window.addEventListener("beforeprint", () => { if (!printingFromButton) renderPrint("mosque"); });
+window.addEventListener("afterprint", () => { printingFromButton = false; });
 
 /* ---- Startup: load template + logo ---- */
 (async () => {

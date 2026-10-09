@@ -1,11 +1,13 @@
 # CCML – Marriage contract form (وثيقة عقد زواج شرعي)
 
-`index.html` is a self-contained page (works offline, no install). Open it in any browser and fill in the fields, then:
+`index.html` is a self-contained page (works offline, no install). Open it in any browser, fill in the fields and add photos of the ID cards (front and back) for the husband, the wife and the two witnesses. Then:
 
-- **تحميل ملف Word المعبأ**: downloads the mosque's original Word form with every field filled in.
-- **طباعة / PDF**: prints a one-page A4 copy, or saves it as PDF.
+- **تحميل النسختين (Word)**: downloads two filled copies of the mosque's original Word form:
+  - `..._copie_mosquee.docx`: the mosque copy, with an extra page of ID photos
+  - `..._copie_epoux.docx`: the couple's copy to take home, with no ID photos
+- **طباعة نسخة المسجد / طباعة نسخة الزوجين**: prints either copy (or saves it as PDF).
 
-Drafts are auto-saved in the browser on that computer. Signatures and the stamp are left blank to be signed by hand.
+Each copy is labelled (نسخة المسجد / نسخة الزوجين). Text fields are auto-saved as a draft in the browser on that computer. ID photos are never saved or sent anywhere, so add them again if the page is reloaded. Signatures and the stamp are left blank to be signed by hand.
 
 ## Editing
 
